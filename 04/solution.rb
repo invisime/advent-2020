@@ -1,9 +1,7 @@
 #! /usr/bin/env ruby
 
-require 'pry'
-
 class CredentialRule
-	def initialize rule_definition, verbose=false
+	def initialize rule_definition, verbose
 		@name, @predicate = rule_definition
 		@verbose = verbose
 	end
@@ -14,11 +12,43 @@ class CredentialRule
 		false
 	end
 
-	def self.year field, min, max
-		return ->(cred) {
-			y = cred.send(field).to_i
-			min <= y && y <= max
-		}
+	def self.configure rules, verbose=false
+		rules.map{|definition| CredentialRule.new definition, verbose }
+	end
+
+	def self.year_within? field, range
+		->(cred) do
+			year = cred.send(field)
+			year.length == 4 && range.include?(year.to_i)
+		end
+	end
+
+	def self.height_within? field, in_range, cm_range
+		->(cred) do
+			raw = cred.send(field)
+			units = raw[-2..-1]
+			h = raw[0..-3].to_i
+			valid = case units
+			when "cm"
+				cm_range.include? h
+			when "in"
+				in_range.include? h
+			else
+				false
+			end
+		end
+	end
+
+	def self.is_rgb_color? field
+		->(cred) { /^\#[0-9a-f]{6}$/ =~ cred.send(field) }
+	end
+
+	def self.included_in? field, valid_values
+		->(cred) { valid_values.include? cred.send(field) }
+	end
+
+	def self.is_valid_passport_id? field
+		->(cred) { /^\d{9}$/ =~ cred.send(field) }
 	end
 end
 
@@ -26,23 +56,17 @@ class Credential
 
 	REQUIRED_KEYS = %w(byr iyr eyr hgt hcl ecl pid).map(&:to_sym)
 
-	DIGITS = "0".upto("9").to_a.join
-	HEX_CHARACTERS = DIGITS + "a".upto("h").to_a.join
 	VALID_EYE_COLORS = %w(amb blu brn gry grn hzl oth)
 
-	VALIDATIONS = [
-			[:birth_year, CredentialRule.year(:byr, 1920, 2002)],
-			[:issue_year, CredentialRule.year(:iyr, 2010, 2020)],
-			[:expiration_year, CredentialRule.year(:eyr, 2020, 2030)],
-			[:height, ->(cred) {
-					h = cred.hgt.to_i
-					(cred.hgt.include?("in") && 59 <= h && h <= 76) ||
-						(cred.hgt.include?("cm") && 150 <= h && h <= 193)
-			}],
-			[:hair_color, ->(cred) { cred.hcl[0] == "#" && cred.hcl[1..-1].chars.all? {|char| HEX_CHARACTERS.include? char }}],
-			[:eye_color, ->(cred) { VALID_EYE_COLORS.include? cred.ecl }],
-			[:passport_id, ->(cred) { cred.pid.length === 9 && cred.pid.chars.all? {|digit| DIGITS.include? digit }}],
-	].map{|definition| CredentialRule.new definition }
+	VALIDATIONS = CredentialRule.configure [
+			[:birth_year, CredentialRule.year_within?(:byr, 1920..2002)],
+			[:issue_year, CredentialRule.year_within?(:iyr, 2010..2020)],
+			[:expiration_year, CredentialRule.year_within?(:eyr, 2020..2030)],
+			[:height, CredentialRule.height_within?(:hgt, 59..76, 150..193)],
+			[:hair_color, CredentialRule.is_rgb_color?(:hcl)],
+			[:eye_color, CredentialRule.included_in?(:ecl, VALID_EYE_COLORS)],
+			[:passport_id, CredentialRule.is_valid_passport_id?(:pid)]
+	]
 
 	def initialize raw
 		@kvps = raw.split(/\s+/).map do |kvp|
@@ -75,5 +99,5 @@ invalid_count = records.count - valid_count
 puts "#{valid_count}/#{records.count} records valid (#{invalid_count} invalid)"
 
 #Part 1
-puts "#{records.count(&:required_fields_present?)} records without all fields"
+puts "#{records.count(&:required_fields_present?)} records with all fields"
 
