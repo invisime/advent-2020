@@ -2,6 +2,26 @@
 
 require 'pry'
 
+class CredentialRule
+	def initialize rule_definition, verbose=false
+		@name, @predicate = rule_definition
+		@verbose = verbose
+	end
+
+	def satisfied_by? credential
+		return true if @predicate.call(credential)
+		puts "#{@name}_valid? of #{credential.pid} failed" if @verbose
+		false
+	end
+
+	def self.year field, min, max
+		return ->(cred) {
+			y = cred.send(field).to_i
+			min <= y && y <= max
+		}
+	end
+end
+
 class Credential
 
 	REQUIRED_KEYS = %w(byr iyr eyr hgt hcl ecl pid).map(&:to_sym)
@@ -10,90 +30,50 @@ class Credential
 	HEX_CHARACTERS = DIGITS + "a".upto("h").to_a.join
 	VALID_EYE_COLORS = %w(amb blu brn gry grn hzl oth)
 
-	VALIDATIONS = %w(
-			birth_year_valid?
-			issue_year_valid?
-			expiration_year_valid?
-			height_valid?
-			hair_color_valid?
-			eye_color_valid?
-			passport_id_valid?
-	).map(&:to_sym)
+	VALIDATIONS = [
+			[:birth_year, CredentialRule.year(:byr, 1920, 2002)],
+			[:issue_year, CredentialRule.year(:iyr, 2010, 2020)],
+			[:expiration_year, CredentialRule.year(:eyr, 2020, 2030)],
+			[:height, ->(cred) {
+					h = cred.hgt.to_i
+					(cred.hgt.include?("in") && 59 <= h && h <= 76) ||
+						(cred.hgt.include?("cm") && 150 <= h && h <= 193)
+			}],
+			[:hair_color, ->(cred) { cred.hcl[0] == "#" && cred.hcl[1..-1].chars.all? {|char| HEX_CHARACTERS.include? char }}],
+			[:eye_color, ->(cred) { VALID_EYE_COLORS.include? cred.ecl }],
+			[:passport_id, ->(cred) { cred.pid.length === 9 && cred.pid.chars.all? {|digit| DIGITS.include? digit }}],
+	].map{|definition| CredentialRule.new definition }
 
 	def initialize raw
 		@kvps = raw.split(/\s+/).map do |kvp|
 			parts = kvp.split(":")
 			[parts[0].to_sym, parts[1]]
 		end.to_h
-	end
 
-	def method_missing method_id
-		if REQUIRED_KEYS.include? method_id
-			return @kvps[method_id]
-		elsif
-			super
+		@kvps.keys.each do |key|
+			self.class.define_method(key, -> { @kvps[key] })
 		end
 	end
 
 	def valid?
-		required_fields_present? && VALIDATIONS.all? {|validation| self.send(validation)}
+		required_fields_present? && VALIDATIONS.all? {|rule| rule.satisfied_by? self}
 	end
 
 	def required_fields_present?
 		(REQUIRED_KEYS - @kvps.keys).empty?
-	end
-
-	def birth_year_valid?
-		year_valid? byr, 1920, 2002
-	end
-
-	def issue_year_valid?
-		year_valid? iyr, 2010, 2020
-	end
-
-	def expiration_year_valid?
-		year_valid? eyr, 2020, 2030
-	end
-
-	def year_valid? year, min, max
-		y = year.to_i
-		min <= y && y <= max
-	end
-
-	def height_valid?
-		h = hgt.to_i
-		if hgt.include? "in"
-			return 59 <= h && h <= 76
-		elsif hgt.include? "cm"
-			return 150 <= h && h <= 193
-		end
-		false
-	end
-
-	def hair_color_valid?
-		return false unless hcl[0] == "#"
-		hcl[1..-1].chars.all? {|char| HEX_CHARACTERS.include? char}
-	end
-
-	def eye_color_valid?
-		VALID_EYE_COLORS.include? ecl
-	end
-
-	def passport_id_valid?
-		return false unless pid.length === 9
-		pid.chars.all? {|digit| DIGITS.include? digit}
 	end
 end
 
 #input_file = "example.txt"
 input_file = "input.txt"
 
-records = File.read(input_file).split("\n\n")
-	.map{|record| Credential.new record}
-
-#Part 1
-puts records.count(&:required_fields_present?)
+records = File.read(input_file).split("\n\n").map{|record| Credential.new record}
 
 #Part 2
-puts records.count(&:valid?)
+valid_count = records.count(&:valid?)
+invalid_count = records.count - valid_count
+puts "#{valid_count}/#{records.count} records valid (#{invalid_count} invalid)"
+
+#Part 1
+puts "#{records.count(&:required_fields_present?)} records without all fields"
 
