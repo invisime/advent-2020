@@ -10,6 +10,7 @@ class Rule
 
 	def initialize rule
 		@id, @definition = rule.split(': ')
+
 		if @definition.include? 'a'
 			@type = :a
 		elsif @definition.include? 'b'
@@ -19,12 +20,15 @@ class Rule
 		else
 			@type = :concat
 		end
+
+		@matched_messages = {}
 		Rule[@id] = self
 	end
 
 	def matches? message
+		return @matched_messages[message] if @matched_messages.include? message
 		return false if message.empty?
-		case type
+		match = case type
 		when :a
 			message == 'a'
 		when :b
@@ -34,6 +38,11 @@ class Rule
 		when :or
 			definition.split('|').any? { |side| Rule.matches_by_concatenation? message, side }
 		end
+		@matched_messages[message] = match
+	end
+
+	def reset_match_cache
+		@matched_messages = {}
 	end
 
 	def self.matches_by_concatenation? message, rules
@@ -51,22 +60,29 @@ class Rule
 	end
 
 	def self.[]= id, r
+		@@by_id.values.each(&:reset_match_cache) if @@by_id.include? id
 		@@by_id[id] = r
 	end
 
 	def self.[] id
 		@@by_id[id]
 	end
+
+	def self.zero_matches? message
+		@@by_id["0"].matches? message
+	end
 end
 
-# input_file = "example.txt"
+# input_file = "example2.txt"
 input_file = "input.txt"
 
 rules, messages = File.read(input_file).split("\n\n").map{|chunk| chunk.split("\n")}
-rules.map! {|r| Rule.new r}
+rules.each {|r| Rule.new r}
 
-#Part 1
+# Part 1
 
-puts messages.count{|message| Rule["0"].matches? message}
+puts messages.count{|message| Rule.zero_matches? message}
+
+# Part 2
 
 binding.pry
