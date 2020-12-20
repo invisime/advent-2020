@@ -1,26 +1,24 @@
 class Tile
 
-	attr_reader :raw_grid, :id
+	attr_reader :input, :id
+
+	alias_method :inspect, :input
 
 	def initialize chunk
+		@input = chunk
 		label, *@raw_grid = chunk.split "\n"
 		@id = label.split(/[\:\s]/)[1].to_i
-		@edges_to_direction = {
-			raw_grid[0] => :north, # left to right
-			raw_grid.map {|line| line[-1]}.join => :east, # top to bottom
-			raw_grid[-1].reverse => :south, # right to left
-			raw_grid.map {|line| line[0]}.join.reverse => :west, # bottom to top
-		}
-		@size = raw_grid[0].length
+		@size = @raw_grid[0].length
 		Tile[@id] = self
 	end
 
-	def to_s
-		["Tile #@id:", *@raw_grid].join "\n"
-	end
-
-	def edges
-		@edges_to_direction.keys
+	def edges grid=@raw_grid
+		[
+			grid[0],																# north, left to right
+			grid.map {|line| line[-1]}.join,				# east, top to bottom
+			grid[-1].reverse, 											# south, right to left
+			grid.map {|line| line[0]}.join.reverse, # west, bottom to top
+		]
 	end
 
 	def flipped_edges
@@ -35,6 +33,12 @@ class Tile
 		edges & other_tile.possible_edges
 	end
 
+	def matching_edge other_tile
+		matches = matching_edges other_tile
+		raise "Expected 1 matching edge. Found #{matches.count}." unless matches.count == 1
+		matches.first
+	end
+
 	def all_possible_neighbors
 		@all_possible_neighbors ||= Tile.all.select do |other_tile|
 			other_tile != self &&
@@ -42,14 +46,12 @@ class Tile
 		end
 	end
 
-	def visual
-		visual_slice 0, 0, @size - 1, @size - 1
+	def corner?
+		all_possible_neighbors.count == 2
 	end
 
-	alias_method :inspect, :visual
-
-	def visual_slice top, left, right, bottom
-		raw_grid[top..bottom].map {|row| row[left..right]}
+	def edge?
+		all_possible_neighbors.count <= 3
 	end
 
 	@@by_id = {}
