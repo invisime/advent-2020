@@ -1,6 +1,6 @@
 class Tile
 
-	attr_reader :input, :id
+	attr_reader :input, :id, :size
 
 	alias_method :inspect, :input
 

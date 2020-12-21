@@ -14,7 +14,7 @@ tiles = File.read(input_file).split("\n\n").map {|chunk| Tile.new chunk}
 puts tiles.select(&:corner?).map(&:id).reduce(&:*)
 
 # Part 2
-puts ["Good luck!", SEA_MONSTER, nil].join("\n")
+puts ["Good luck!", Puzzle::SEA_MONSTER, nil].join("\n")
 
 puzzle = Puzzle.new tiles
 
