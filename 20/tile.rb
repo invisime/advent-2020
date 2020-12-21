@@ -2,13 +2,13 @@ class Tile
 
 	attr_reader :input, :id, :size
 
-	alias_method :inspect, :input
+	# alias_method :inspect, :input
 
 	def initialize chunk
 		@input = chunk
-		label, *@raw_grid = chunk.split "\n"
-		@id = label.split(/[\:\s]/)[1].to_i
-		@size = @raw_grid[0].length
+		@label, *@raw_grid = chunk.split "\n"
+		@id = @label.split(/[\:\s]/)[1].to_i
+		raise "irregularly sized tile" unless @raw_grid.length == Tile.size && @raw_grid.map(&:length).all?(Tile.size)
 		Tile[@id] = self
 	end
 
@@ -54,6 +54,14 @@ class Tile
 		all_possible_neighbors.count <= 3
 	end
 
+	def blank?
+		self == Tile.blank
+	end
+
+	def self.size
+		10
+	end
+
 	@@by_id = {}
 
 	def self.[] id
@@ -66,5 +74,9 @@ class Tile
 
 	def self.all
 		@@by_id.values
+	end
+
+	def self.blank
+		@@blank_tile ||= Tile.new ["Tile 0:", size.times.map { ' ' * size }].join "\n"
 	end
 end
