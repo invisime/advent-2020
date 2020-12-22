@@ -2,24 +2,6 @@ require './tile_orientation'
 
 class Puzzle
 
-	SEA_MONSTER =
-["                  # ",
- "#    ##    ##    ###",
- " #  #  #  #  #  #   "]
-
-	ROTATED_SEA_MONSTERS = SEA_MONSTER[0].length.times.map{|r_c| SEA_MONSTER.size.times.map {|c_r| SEA_MONSTER[c_r][r_c] }.join }.to_a
-
-	SEA_MONSTERS = [
-		SEA_MONSTER,
-		SEA_MONSTER.reverse,
-		SEA_MONSTER.map(&:reverse),
-		SEA_MONSTER.map(&:reverse).reverse,
-		ROTATED_SEA_MONSTERS,
-		ROTATED_SEA_MONSTERS.reverse,
-		ROTATED_SEA_MONSTERS.map(&:reverse),
-		ROTATED_SEA_MONSTERS.map(&:reverse).reverse,
-	]
-
 	def initialize tiles
 		@tiles = tiles
 		s = Math.sqrt tiles.count
@@ -53,8 +35,6 @@ class Puzzle
 
 			solve_row! r
 		end
-
-		binding.pry
 	end
 
 	# This method makes some assumptions about how the puzzle input is generated.
