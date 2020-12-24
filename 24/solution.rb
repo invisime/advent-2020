@@ -4,20 +4,14 @@ require 'pry'
 
 class HexTile
 
-	DIRECTION_REGEXP = /(ne|e|se|sw|w|nw)/
-
-	attr_reader :location
-
-	def initialize x, y
-		@location = [x, y]
-	end
+	DIRECTIONS = %w(e w ne sw nw se).map(&:to_sym)
+	DIRECTION_REGEXP = Regexp.new "(#{DIRECTIONS.join '|'})"
 
 	def self.from_instructions line
 		instructions = line.scan(DIRECTION_REGEXP).map(&:first)
-		raise "invalid parse detected" unless instructions.join == line
 		location = [0, 0]
 		instructions.each { |d| location = HexTile.next_to *location, d }
-		HexTile.new *location
+		location
 	end
 
 	def self.next_to x, y, direction
@@ -30,11 +24,39 @@ class HexTile
 			[x + 1, y + 1]
 		when :sw
 			[x - 1, y - 1]
-		when :se
-			[x, y - 1]
 		when :nw
 			[x, y + 1]
+		when :se
+			[x, y - 1]
 		end
+	end
+
+	def self.neighbors_of x, y
+		DIRECTIONS.map{|direction| HexTile.next_to x, y, direction	}
+	end
+end
+
+class TiledLobby
+	def initialize locations_of_black_tiles
+		@tiles = locations_of_black_tiles.to_h {|location| [location, true]}
+	end
+
+	def retile_for_next_day!
+		locations_to_handle = @tiles.keys | @tiles.keys.map{|l| HexTile.neighbors_of *l}.reduce(&:+)
+		new_tiles = {}
+		locations_to_handle.each do |location|
+			touching_tiles = HexTile.neighbors_of(*location).select{|l| @tiles.include? l}.count
+			if @tiles.include? location
+				new_tiles[location] = true if [1, 2].include? touching_tiles
+			else
+				new_tiles[location] = true if touching_tiles == 2
+			end
+		end
+		@tiles = new_tiles
+	end
+
+	def count_black_tiles
+		@tiles.count{|location, flipped| flipped}
 	end
 end
 
@@ -45,10 +67,13 @@ lines = File.readlines(input_file, chomp: true)
 
 # Part 1
 
-tiles = lines.map{|line| HexTile.from_instructions line }
-flips_per_tile = tiles.group_by(&:location).to_h{|location, tiles| [location, tiles.count]}
-puts flips_per_tile.values.select(&:odd?).count
+locations = lines.map{|line| HexTile.from_instructions line }
+flips_per_tile = locations.group_by{|_|_}.to_h{|location, instances| [location, instances.count]}
+black_tile_locations = flips_per_tile.select{|location, count| count.odd? }.keys
+lobby_floor = TiledLobby.new black_tile_locations
+puts lobby_floor.count_black_tiles
 
 # Part 2
 
-binding.pry
+100.times { lobby_floor.retile_for_next_day! }
+puts lobby_floor.count_black_tiles
